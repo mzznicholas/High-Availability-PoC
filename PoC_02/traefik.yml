@@ -1,0 +1,9 @@
+global:
+  sendAnonymousUsage: false
+
+api:
+  insecure: true
+
+
+providers:
+  docker: {}

@@ -1,0 +1,144 @@
+version: '3.2'
+
+services:
+
+  patient_app:
+    image: mzznico/pgapache
+    networks:
+      - traefik-public
+    volumes:
+      - ./patient_app:/var/www/html/
+    deploy:
+      labels:
+        - traefik.http.services.patient_app-service.loadbalancer.server.port=80
+        - traefik.http.routers.patient_app.rule=(Host(`patient.local`))
+        - traefik.http.routers.patient_app.entrypoints=web
+        - traefik.http.services.patient_app-service.loadBalancer.sticky.cookie=true
+      mode: replicated
+      replicas: 2
+      placement:
+        constraints: [node.hostname == node3]
+
+  doctor_app:
+    image: mzznico/pgapache
+    networks:
+      - traefik-public
+    volumes:
+      - ./doctor_app:/var/www/html/
+    deploy:
+      labels:
+        - traefik.http.services.doctor_app-service.loadbalancer.server.port=80
+        - traefik.http.routers.doctor_app.rule=(Host(`doctor.local`))
+        - traefik.http.routers.doctor_app.entrypoints=web
+        - traefik.http.services.doctor_app-service.loadBalancer.sticky.cookie=true
+      mode: replicated
+      replicas: 3
+      placement:
+        constraints: [node.role == worker]
+
+    
+  postgresql-master:
+    image: 'bitnami/postgresql:15.4.0'
+    networks:
+      - traefik-public
+    ports:
+      - '5432'
+    volumes:
+      - 'pg_master_app:/bitnami/postgresql'
+      - ./sql_scripts:/docker-entrypoint-initdb.d
+    
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.hostname == node2]
+      labels:
+        - traefik.tcp.services.postgresql-master-service.loadbalancer.server.port=5432
+        - traefik.tcp.routers.postgresql-master.rule=HostSNI(`*`)
+        - traefik.tcp.routers.postgresql-master.priority=5
+        - traefik.tcp.routers.postgresql-master.entrypoints=db
+
+
+
+    environment:
+      - POSTGRESQL_REPLICATION_MODE=master
+      - POSTGRESQL_REPLICATION_USER=repl_user
+      - POSTGRESQL_REPLICATION_PASSWORD=repl_password
+      - POSTGRESQL_USERNAME=admin
+      - ALLOW_EMPTY_PASSWORD=yes
+      - POSTGRESQL_LOG_HOSTNAME=true
+      - POSTGRESQL_DATABASE=db
+
+  postgresql-slave:
+    image: 'bitnami/postgresql:15.4.0'
+    networks:
+      - traefik-public
+    ports:
+      - '5432'
+
+    environment:
+      - POSTGRESQL_REPLICATION_MODE=slave
+      - POSTGRESQL_REPLICATION_USER=repl_user
+      - POSTGRESQL_REPLICATION_PASSWORD=repl_password
+      - POSTGRESQL_MASTER_HOST=app_postgresql-master
+      - POSTGRESQL_USERNAME=postgres
+      - ALLOW_EMPTY_PASSWORD=yes
+      - POSTGRESQL_MASTER_PORT_NUMBER=5432
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.hostname == node3]
+      labels:
+        - traefik.tcp.services.postgresql-slave-service.loadbalancer.server.port=5432
+        - traefik.tcp.routers.postgresql-slave.entrypoints=db
+        - traefik.tcp.routers.postgresql-slave.rule=HostSNI(`*`)
+        - traefik.tcp.routers.postgresql-slave.priority=1
+
+
+  grafana:
+    image: grafana/grafana:10.1.2
+    networks:
+      - traefik-public
+    ports:
+      - '3000:3000'
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - ./grafana/provisioning/:/etc/grafana/provisioning
+    environment:
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+
+
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    networks:
+      - traefik-public
+    volumes:
+      - ./prometheus/:/etc/prometheus/
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.size=256MB'
+    ports:
+      - 9090:9090
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+
+volumes:
+  grafana-storage:
+  prometheus_data:
+  pg_master_app:
+
+
+networks:
+  traefik-public:
+    external: true

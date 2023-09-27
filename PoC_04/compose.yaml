@@ -1,0 +1,48 @@
+version: '3'
+
+services:
+  traefik:
+    image: traefik:v2.10
+    ports:
+      - "80:80" # The HTTP port
+      - "8080:8080" # The Web UI
+    volumes:
+      - ./traefik.yml:/etc/traefik/traefik.yml
+      - ./traefik.log:/etc/traefik/traefik.log
+      - ./access.log:/etc/traefik/access.log
+      - /var/run/docker.sock:/var/run/docker.sock #listen to the Docker events
+
+  
+  ws:
+    image: php:8.2-apache
+    volumes:
+      - ./index.php:/var/www/html/index.php
+    labels:
+      - "traefik.http.routers.ws.rule=Host(`localhost`)"
+
+      - "traefik.http.services.ws.loadBalancer.healthCheck.path=/"
+      - "traefik.http.services.ws.loadBalancer.healthCheck.interval=1s"
+
+    restart: always
+
+    deploy:
+      replicas: 3
+
+
+  locust_master:
+    image: locustio/locust
+    labels:
+      - traefik.enable=false
+    ports:
+     - "9089:8089"
+    volumes:
+      - ./:/mnt/locust
+    command: -f /mnt/locust/locustfile.py --master -H http://traefik:80 -u 50 -r 50
+  
+  locust_worker:
+    image: locustio/locust
+    labels:
+      - traefik.enable=false
+    volumes:
+      - ./:/mnt/locust
+    command: -f /mnt/locust/locustfile.py --worker --master-host locust_master

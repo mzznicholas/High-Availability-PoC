@@ -1,0 +1,65 @@
+version: '3'
+
+services:
+  traefik:
+    image: traefik:v2.10
+    ports:
+      - "80:80" # The HTTP port
+      - "8080:8080" # The Web UI
+    volumes:
+      - ./traefik.yml:/etc/traefik/traefik.yml
+      - /var/run/docker.sock:/var/run/docker.sock #listen to the Docker events
+    profiles: ["base"]
+
+
+  ws1:
+    image: php:8.2-apache
+    volumes:
+      - ./ws1/index.php:/var/www/html/index.php
+    labels:
+      - "traefik.http.routers.ws1.rule=Host(`localhost`)"
+      - "traefik.http.services.ws1.loadBalancer.sticky.cookie.name=routing_cookie"
+      
+    deploy:
+      replicas: 3
+    profiles: ["ws1"]
+
+
+  
+  ws2:
+    image: php:8.2-apache
+    volumes:
+      - ./ws2/index.php:/var/www/html/index.php
+    labels:
+      - "traefik.http.routers.ws2.rule=Host(`localhost`)"
+      - traefik.http.routers.ws2.priority=5
+      - traefik.http.routers.ws1.priority=1
+      - "traefik.http.services.ws2.loadBalancer.sticky.cookie.name=routing_cookie"
+        
+    deploy:
+      replicas: 3
+    profiles: ["ws2"]
+
+
+
+
+  locust_master:
+    image: locustio/locust:2.16.1
+    labels:
+      - traefik.enable=false
+    ports:
+     - "9089:8089"
+    volumes:
+      - ./:/mnt/locust
+    command: -f /mnt/locust/locustfile.py --master -H http://traefik:80 -u 500 -r 50
+    profiles: ["base"]
+
+  
+  locust_worker:
+    image: locustio/locust
+    labels:
+      - traefik.enable=false
+    volumes:
+      - ./:/mnt/locust
+    command: -f /mnt/locust/locustfile.py --worker --master-host locust_master
+    profiles: ["base"]

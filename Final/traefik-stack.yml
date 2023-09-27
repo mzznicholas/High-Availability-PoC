@@ -1,0 +1,29 @@
+version: '3.7'
+
+services:
+  traefik:
+    image: traefik:v2.10
+
+    ports:
+      - "80:80" # The HTTP port
+      - "8080:8080" # The Web UI
+      - "5432:5432"
+    volumes:
+      - ./traefik.yml:/etc/traefik/traefik.yml
+      - /var/run/docker.sock:/var/run/docker.sock #listen to the Docker events
+
+    labels:
+      - traefik.docker.network=traefik-public
+
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+
+    networks:
+      - traefik-public
+
+
+networks:
+  traefik-public:
+    external: true
