@@ -1,1 +1,3 @@
-docker exec -it poc_04-ws-2 touch /var/www/html/error.on
+docker stop poc_06-postgresql-master-1
+
+docker exec poc_06-postgresql-slave-1 touch /tmp/postgresql.trigger.5432

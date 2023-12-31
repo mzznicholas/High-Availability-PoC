@@ -9,36 +9,49 @@ services:
     volumes:
       - ./traefik.yml:/etc/traefik/traefik.yml
       - /var/run/docker.sock:/var/run/docker.sock #listen to the Docker events
-    profiles: ["base"]
 
 
-  ws:
-    image: pgapache
+  patient_app:
+    build:
+      context: ./
+      dockerfile: Dockerfile
     volumes:
-      - ./index.php:/var/www/html/index.php
+      - ./patient_app:/var/www/html/patient
     labels:
-      - "traefik.http.services.ws-service.loadbalancer.server.port=80"
-      - traefik.http.routers.ws.rule=Host(`localhost`)
-      - traefik.http.routers.ws.entrypoints=web
-
+      - traefik.http.services.patient_app-service.loadbalancer.server.port=80
+      - traefik.http.routers.patient_app.rule=(Host(`localhost`) && PathPrefix(`/patient/`))
+      - traefik.http.routers.patient_app.entrypoints=web
+      - traefik.http.services.patient_app-service.loadBalancer.sticky.cookie=true
     deploy:
       replicas: 3
-    profiles: ["base"]
+
+  doctor_app:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    volumes:
+      - ./doctor_app:/var/www/html/doctor
+    labels:
+      - traefik.http.services.doctor_app-service.loadbalancer.server.port=80
+      - traefik.http.routers.doctor_app.rule=(Host(`localhost`) && PathPrefix(`/doctor/`))
+      - traefik.http.routers.doctor_app.entrypoints=web
+      - traefik.http.services.doctor_app-service.loadBalancer.sticky.cookie=true
+    deploy:
+      replicas: 3
 
     
   postgresql-master:
-    image: 'bitnami/postgresql:15.4.0'
+    image: 'bitnami/postgresql:latest'
     ports:
       - '5432'
     volumes:
-      - 'postgresql_master_data:/bitnami/postgresql'
+      - 'pg_master:/bitnami/postgresql'
       - ./sql_scripts:/docker-entrypoint-initdb.d
     
     labels:
       - traefik.tcp.routers.postgresql-master.rule=HostSNI(`*`)
       - traefik.tcp.routers.postgresql-master.priority=5
       - traefik.tcp.routers.postgresql-master.entrypoints=db
-
 
     environment:
       - POSTGRESQL_REPLICATION_MODE=master
@@ -47,12 +60,10 @@ services:
       - POSTGRESQL_USERNAME=admin
       - ALLOW_EMPTY_PASSWORD=yes
       - POSTGRESQL_LOG_HOSTNAME=true
-
       - POSTGRESQL_DATABASE=db
-    profiles: ["base"]
 
   postgresql-slave:
-    image: 'bitnami/postgresql:15.4.0'
+    image: 'bitnami/postgresql:latest'
     ports:
       - '5432'
     depends_on:
@@ -65,7 +76,6 @@ services:
       - POSTGRESQL_USERNAME=postgres
       - ALLOW_EMPTY_PASSWORD=yes
       - POSTGRESQL_MASTER_PORT_NUMBER=5432
-    profiles: ["base"]
     labels:
       - traefik.tcp.routers.postgresql-slave.entrypoints=db
       - traefik.tcp.routers.postgresql-slave.rule=HostSNI(`*`)
@@ -73,6 +83,26 @@ services:
 
 
 
+  locust_master:
+    image: locustio/locust
+    labels:
+      - traefik.enable=false
+    ports:
+     - "9089:8089"
+    volumes:
+      - ./:/mnt/locust
+    command: -f /mnt/locust/locustfile.py --master -H http://traefik:80 -u 50 -r 50
+
+  
+  locust_worker:
+    image: locustio/locust
+    labels:
+      - traefik.enable=false
+    volumes:
+      - ./:/mnt/locust
+    command: -f /mnt/locust/locustfile.py --worker --master-host locust_master
+
+
 
 volumes:
-  postgresql_master_data:
+  pg_master:

@@ -1,1 +1,1 @@
-docker-compose --profile ws1 stop
+docker exec -it poc_04-ws-2 rm /var/www/html/error.on

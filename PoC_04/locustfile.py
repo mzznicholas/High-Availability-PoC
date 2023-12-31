@@ -7,4 +7,4 @@ class LocustBot(HttpUser):
     @task
     def ws(self):
         headers = {'Host': 'localhost'}
-        self.client.get("/", headers=headers)
+        resp = self.client.get("/", headers=headers)

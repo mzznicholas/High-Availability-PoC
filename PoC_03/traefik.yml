@@ -7,3 +7,10 @@ api:
 
 providers:
   docker: {}
+
+log:
+  filePath: "/etc/traefik/traefik.log"
+  level: DEBUG
+
+accessLog:
+  filePath: "/etc/traefik/access.log"

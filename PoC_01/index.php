@@ -1,4 +1,5 @@
 <?php session_start(); ?>
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -10,21 +11,21 @@
   <body>
     <div style="margin: 2em">
     <h1>Welcome to WS!</h1>
-	<?php
+    <?php
 
-    echo "<p>Host: " . getenv('HOSTNAME') . "</p>"; 
+      echo "<p>Host: " . getenv('HOSTNAME') . "</p>"; 
 
-    $counter = 0;
+      $counter = 0;
 
-    if(isset($_SESSION["counter"])) {
-        $counter = $_SESSION["counter"];
-    }
+      if(isset($_SESSION["counter"])) {
+          $counter = $_SESSION["counter"];
+      }
 
-    $_SESSION["counter"] = $counter + 1;
+      $_SESSION["counter"] = $counter + 1;
 
-    echo "<p>I saw you here $counter times</p>"; 
+      echo "<p>I saw you here $counter times</p>"; 
 
-    ?>
+      ?>
     </div>
   </body>
 </html>

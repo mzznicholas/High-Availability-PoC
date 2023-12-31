@@ -12,4 +12,10 @@ api:
 
 
 providers:
-  docker: {}
+  docker:
+    network: traefik-public
+    swarmMode: true
+
+metrics:
+  prometheus:
+    addRoutersLabels: true

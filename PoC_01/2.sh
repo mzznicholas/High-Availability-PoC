@@ -1,1 +1,0 @@
-docker kill poc_01-ws_2-1

@@ -1,45 +1,22 @@
 version: '3'
 
 services:
-  reverse-proxy:
-    image: nginx:1.25.2
+  traefik:
+    image: traefik:v2.10
     ports:
-      - "80:80"
+      - "80:80" # The HTTP port
+      - "8080:8080" # The Web UI
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-      
-  ws_1:
-    image: php:8.2-apache
-    volumes:
-      - ./index.php:/var/www/html/index.php
-    ports:
-      - "8081:80"
+      - ./traefik.yml:/etc/traefik/traefik.yml
+      - /var/run/docker.sock:/var/run/docker.sock #listen to the Docker events
   
-  ws_2:
+  ws:
     image: php:8.2-apache
     volumes:
       - ./index.php:/var/www/html/index.php
-    ports:
-      - "8082:80"
-  
-  ws_3:
-    image: php:8.2-apache
-    volumes:
-      - ./index.php:/var/www/html/index.php
-    ports:
-      - "8083:80"
+    labels:
+      - "traefik.http.routers.ws1.rule=Host(`localhost`)"
+      - "traefik.http.services.ws.loadBalancer.sticky.cookie=true"
 
-
-  locust_master:
-    image: locustio/locust:2.16.1
-    ports:
-     - "9089:8089"
-    volumes:
-      - ./:/mnt/locust
-    command: -f /mnt/locust/locustfile.py --master -H http://reverse-proxy:80 -u 50 -r 5
-  
-  locust_worker:
-    image: locustio/locust:2.16.1
-    volumes:
-      - ./:/mnt/locust
-    command: -f /mnt/locust/locustfile.py --worker --master-host locust_master
+    deploy:
+      replicas: 5
